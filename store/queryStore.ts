@@ -8,11 +8,17 @@ import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { produce } from "immer";
 import {
+  DEFAULT_FILTER_PARAMS,
+  DEFAULT_PAGINATION_PARAMS,
+  DEFAULT_SORTS_PARAMS,
   getAllowedParams,
   getDefaultSearchParamsMap,
 } from "../config/queryConfig";
-import { isEmpty, isEqual, merge } from "lodash-es";
-import { sanitizeSearchParamsMap } from "@/helpers/santizeSearchParamsMap";
+import { cloneDeep, isEmpty, isEqual, merge } from "lodash-es";
+import {
+  checkInvalidApiParams,
+  sanitizeSearchParamsMap,
+} from "@/helpers/santizeSearchParamsMap";
 import { usePathname } from "next/navigation";
 import {
   IFilterConfig,
@@ -86,6 +92,7 @@ export const useQueryStore = create<QueryStoreState & QueryStoreActions>()(
                 // query state trigger useEffect and hook refetch across the app, which is expensive
                 const trueUpdatedValues = {} as ISearchParamsMapPerPath;
                 for (const [key, value] of Object.entries(
+                  // sanitize the api params if they are not valid
                   sanitizeSearchParamsMap(
                     updates,
                     getAllowedParams(path as IAllPaths)
@@ -124,9 +131,27 @@ export const useQueryStore = create<QueryStoreState & QueryStoreActions>()(
             let newState: QueryStoreState;
             set((state: QueryStoreState) => {
               const updatedState = produce(state, (state: QueryStoreState) => {
+                // filter out the params that are not allowed
                 if (!getAllowedParams(path as IAllPaths).includes(key)) {
                   return;
                 }
+                // sanitize the api params if they are not valid
+                if (
+                  key === "filter" &&
+                  !checkInvalidApiParams("filter", value)
+                ) {
+                  value = cloneDeep(DEFAULT_FILTER_PARAMS);
+                }
+                if (
+                  key === "pagination" &&
+                  !checkInvalidApiParams("pagination", value)
+                ) {
+                  value = cloneDeep(DEFAULT_PAGINATION_PARAMS);
+                }
+                if (key === "sorts" && !checkInvalidApiParams("sorts", value)) {
+                  value = cloneDeep(DEFAULT_SORTS_PARAMS);
+                }
+
                 // only update the query state when the new value are not the same as the current value
                 // query state trigger useEffect and hook refetch across the app, which is expensive
                 if (isEqual(value, state.queryStates[path][key])) {
@@ -181,13 +206,24 @@ export const useQueryStore = create<QueryStoreState & QueryStoreActions>()(
             ) => {
               const pagination = params?.pagination as IPaginationConfig;
               const sorts = params?.sorts as ISortConfig[];
-              if (pagination && (!pagination.page || !pagination.pageSize)) {
-                // remove the pagination param if it is not valid
-                delete mergedState.queryStates[key].pagination;
+              const filter = params?.filter as IFilterConfig;
+              // Reset the api params if they are not valid
+              if (filter && !checkInvalidApiParams("filter", filter)) {
+                mergedState.queryStates[key].filter = cloneDeep(
+                  DEFAULT_FILTER_PARAMS
+                );
               }
-              // remove the sorts param if it is not valid
-              if (sorts && sorts.some((sort) => !sort.key || !sort.order)) {
-                delete mergedState.queryStates[key].sorts;
+              if (
+                pagination &&
+                !checkInvalidApiParams("pagination", pagination)
+              ) {
+                mergedState.queryStates[key].pagination = cloneDeep(
+                  DEFAULT_PAGINATION_PARAMS
+                );
+              }
+              if (sorts && !checkInvalidApiParams("sorts", sorts)) {
+                mergedState.queryStates[key].sorts =
+                  cloneDeep(DEFAULT_SORTS_PARAMS);
               }
             };
             for (const [key, value] of Object.entries(

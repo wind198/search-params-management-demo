@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { IPaginatedData } from "@/types/paginatedData";
 import { useUpdateUrlAfterUpdateQueryState } from "@/hooks/useUpdateUrlAfterUpdateQueryState";
 import { Pagination } from "./Pagination";
+import { IPaginationConfig } from "@/types/queryTypes";
 
 interface DataPaginationProps<T> {
   pageSizeOptions?: number[];
@@ -28,15 +29,16 @@ export function DataPagination<T>({
   const handlePageChange = (page: number) => {
     const newState = setParamsForPath(pathname as IAllPaths, "pagination", {
       page,
-    });
+      pageSize: currentPageSize,
+    } satisfies IPaginationConfig);
     onQueryStateChange(newState);
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
     const newState = setParamsForPath(pathname as IAllPaths, "pagination", {
-      page: 1,
+      page: currentPage,
       pageSize: newPageSize,
-    });
+    } satisfies IPaginationConfig);
     onQueryStateChange(newState);
   };
 
